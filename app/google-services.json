@@ -1,0 +1,55 @@
+{
+  "project_info": {
+    "project_number": "648898289277",
+    "firebase_url": "https://lab4chatapp.firebaseio.com",
+    "project_id": "lab4chatapp",
+    "storage_bucket": "lab4chatapp.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:648898289277:android:bdfb995375287c8f",
+        "android_client_info": {
+          "package_name": "com.example.avokado.lab4"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "648898289277-tao4oi4ddmsvgocicgik0uk9m81r27b2.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.avokado.lab4",
+            "certificate_hash": "78234bcf9400eb99bd1773ebbe20ff5ae594a075"
+          }
+        },
+        {
+          "client_id": "648898289277-s6pd8kefm2ff0kqhfr1pmv6pjmee4hjs.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCZqEz6Yl90fE07u_YYrLxtINzjeUM3Rzw"
+        }
+      ],
+      "services": {
+        "analytics_service": {
+          "status": 1
+        },
+        "appinvite_service": {
+          "status": 2,
+          "other_platform_oauth_client": [
+            {
+              "client_id": "648898289277-s6pd8kefm2ff0kqhfr1pmv6pjmee4hjs.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        },
+        "ads_service": {
+          "status": 2
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
