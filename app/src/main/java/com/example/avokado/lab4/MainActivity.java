@@ -34,7 +34,6 @@ public class MainActivity extends AppCompatActivity {
 	private static final int RC_SIGN_IN = 100;
 	private static final int RC_USR_REG = 101;
 
-	String APIKey = "AIzaSyCZqEz6Yl90fE07u_YYrLxtINzjeUM3Rzw"; // TODO: remove!
 	FirebaseFirestore db;
 
 	String username;
