@@ -1,10 +1,13 @@
 package com.example.avokado.lab4;
 
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.v4.content.LocalBroadcastManager;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.support.v7.widget.LinearLayoutManager;
@@ -20,7 +23,6 @@ import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.gms.tasks.Task;
-import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.CollectionReference;
 import com.google.firebase.firestore.DocumentReference;
@@ -28,12 +30,9 @@ import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.EventListener;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.FirebaseFirestoreException;
-import com.google.firebase.firestore.ListenerRegistration;
-import com.google.firebase.firestore.Query;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 import com.google.firebase.firestore.QuerySnapshot;
 
-import java.sql.Time;
 import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -43,16 +42,16 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.regex.Pattern;
 
 /* SOURCES:
-Firestore basics: https://cloud.google.com/firestore/docs/quickstart
-realtime data: https://firebase.google.com/docs/firestore/query-data/listen
+Firestore basics: 			https://cloud.google.com/firestore/docs/quickstart
+realtime data: 				https://firebase.google.com/docs/firestore/query-data/listen
+broadcasting from adapter: 	https://stackoverflow.com/a/35061883
 */
 
 // TODO: friendlist
 // TODO: hints when filling username
-
+// TODO: Fix timestamp in chat
 public class MainActivity extends AppCompatActivity {
 
 	private static final int RC_SIGN_IN = 100;
@@ -70,20 +69,31 @@ public class MainActivity extends AppCompatActivity {
 	private MessageAdapter messageAdapter;
 	private RecyclerView RecyclerViewChat;
 
+	//friends data
+	public List<Friends> friendsList;
+	private FriendsAdapter friendsAdapter;
+
+	//
+	public List<Message> thisFriendLogList;
+	public MessageAdapter thisFriendLog;
+
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
-
 
 		// prepare chat view
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_main);
 
+		// prepare chat
 		messageList = new ArrayList<>();
 		messageAdapter = new MessageAdapter(messageList);
 		RecyclerViewChat = (RecyclerView) findViewById(R.id.chat_view_rc);
 		RecyclerViewChat.setLayoutManager(new LinearLayoutManager(this));
 		RecyclerViewChat.setAdapter(messageAdapter);
 
+		// prepare friends
+		friendsList = new ArrayList<>();
+		friendsAdapter = new FriendsAdapter(friendsList);
 
 		findViewById(R.id.post_mess_bt).setOnClickListener(new View.OnClickListener() {
 			@Override
@@ -108,6 +118,25 @@ public class MainActivity extends AppCompatActivity {
 			}
 		});
 
+		findViewById(R.id.chat_tab_bt).setOnClickListener(new View.OnClickListener() {
+			@Override
+			public void onClick(View view) {
+				RecyclerViewChat.setAdapter(messageAdapter);
+				RecyclerViewChat.scrollToPosition(messageList.size() - 1);
+			}
+		});
+
+		findViewById(R.id.friend_tab_bt).setOnClickListener(new View.OnClickListener() {
+			@Override
+			public void onClick(View view) {
+				RecyclerViewChat.setAdapter(friendsAdapter);
+			}
+		});
+
+		// Register to receive messages.
+		// We are registering an observer (mMessageReceiver) to receive Intents
+		LocalBroadcastManager.getInstance(this).registerReceiver(mMessageReceiver,
+				new IntentFilter("friend log"));
 
 		//recyclerLayoutTest();
 		//retrieveInitialData("messages");
@@ -183,7 +212,7 @@ public class MainActivity extends AppCompatActivity {
 								String timestamp = m.get("timestamp").toString();
 								Log.d("debug", message + username + timestamp);
 								Message newMessage = new Message(message, username, timestamp);
-								addToMessagesView(newMessage);
+								addToMessagesView(newMessage, messageList);
 							}
 							messageAdapter.notifyDataSetChanged();
 
@@ -195,7 +224,87 @@ public class MainActivity extends AppCompatActivity {
 					}
 				}
 		);
+
+		db.collection("users").addSnapshotListener(
+				new EventListener<QuerySnapshot>() {
+					@Override
+					public void onEvent(@Nullable QuerySnapshot snapshot,
+										@Nullable FirebaseFirestoreException e) {
+						if (e != null) {
+							Log.w("debug", "Listen failed.", e);
+							return;
+						}
+
+						if (snapshot != null && !snapshot.isEmpty()) {
+							Log.d("debug", "Current data: " + snapshot.getDocumentChanges().get(0).getDocument().getData());
+
+							int changes = snapshot.getDocumentChanges().size();
+
+							for(int i = 0; i < changes; i++) {
+								Map m = snapshot.getDocumentChanges().get(i).getDocument().getData();
+								String username = m.get("username").toString();
+								Log.d("debug", username);
+								Friends newFriends = new Friends(username);
+								friendsList.add(newFriends);
+							}
+							friendsAdapter.notifyDataSetChanged();
+
+						} else {
+							Log.d("debug", "Current data: null");
+						}
+					}
+				}
+		);
 	}
+	public BroadcastReceiver mMessageReceiver = new BroadcastReceiver() {
+		@Override
+		public void onReceive(Context context, Intent intent) {
+			// Get extra data included in the Intent
+			String userToLog = intent.getStringExtra("username");
+			Log.d("debug", "onReceive: " + userToLog);
+
+			thisFriendLogList = new ArrayList<>();
+			thisFriendLog = new MessageAdapter(thisFriendLogList);
+
+			RecyclerViewChat.setAdapter(thisFriendLog);
+			RecyclerViewChat.scrollToPosition(messageList.size() - 1);
+
+			db.collection("messages").whereEqualTo("username", userToLog).addSnapshotListener(
+					new EventListener<QuerySnapshot>() {
+						@Override
+						public void onEvent(@Nullable QuerySnapshot snapshot,
+											@Nullable FirebaseFirestoreException e) {
+							if (e != null) {
+								Log.w("debug", "Listen failed.", e);
+								return;
+							}
+
+							if (snapshot != null && !snapshot.isEmpty()) {
+								Log.d("debug", "Current data: " + snapshot.getDocumentChanges().get(0).getDocument().getData());
+
+								int changes = snapshot.getDocumentChanges().size();
+
+								for(int i = 0; i < changes; i++) {
+									Map m = snapshot.getDocumentChanges().get(i).getDocument().getData();
+									String message = m.get("message").toString();
+									String username = m.get("username").toString();
+									String timestamp = m.get("timestamp").toString();
+									Log.d("debug", message + username + timestamp);
+									Message newMessage = new Message(message, username, timestamp);
+									addToMessagesView(newMessage, thisFriendLogList);
+								}
+								messageAdapter.notifyDataSetChanged();
+
+								RecyclerViewChat.scrollToPosition(messageList.size() - 1);
+
+							} else {
+								Log.d("debug", "Current data: null");
+							}
+						}
+					}
+			);
+		}
+	};
 
 	@Override
 	protected void onActivityResult(int requestCode, int resultCode, Intent data) {
@@ -275,24 +384,24 @@ public class MainActivity extends AppCompatActivity {
 		}
 	}
 
-	public void addToMessagesView(Message message) {
+	public void addToMessagesView(Message message, List<Message> m) {
 		Log.d("debug", "1");
 		try {
 			SimpleDateFormat dateFormat = new SimpleDateFormat("EEE MMM d hh:mm:ss z yyyy");
 			Date newParsedDate = dateFormat.parse(message.getTimestamp());
 			Timestamp newMessageTimeStamp = new java.sql.Timestamp(newParsedDate.getTime());;
 			boolean added = false;
-				if (messageList.size() > 1) {
-					for (int i = 0; i < messageList.size()-1; i++) {
-						Date parsedDate = dateFormat.parse(messageList.get(i).getTimestamp());
+				if (m.size() > 1) {
+					for (int i = 0; i < m.size()-1; i++) {
+						Date parsedDate = dateFormat.parse(m.get(i).getTimestamp());
 						Timestamp memberTimestamp = new java.sql.Timestamp(parsedDate.getTime());
 
-						Date nextParsedDate = dateFormat.parse(messageList.get(i+1).getTimestamp());
+						Date nextParsedDate = dateFormat.parse(m.get(i+1).getTimestamp());
 						Timestamp nextMemberTimestamp = new java.sql.Timestamp(nextParsedDate.getTime());
 
 						if(newMessageTimeStamp.before(memberTimestamp)){
 							Log.d("debug", "message added first: " + i + message + "\n");
-							messageList.add(0, message);
+							m.add(0, message);
 							added = true;
 							break;
 						}
@@ -300,7 +409,7 @@ public class MainActivity extends AppCompatActivity {
 								newMessageTimeStamp.before(nextMemberTimestamp)) {
 
 							Log.d("debug", "message added inbetween: " + i + message + "\n");
-							messageList.add(i+1, message);
+							m.add(i+1, message);
 							added = true;
 							break;
 						}
@@ -308,21 +417,21 @@ public class MainActivity extends AppCompatActivity {
 					}
 					if (!added) {
 						Log.d("debug", "message added after loop: " + message + "\n");
-						messageList.add(message);
+						m.add(message);
 					}
-				} else if (messageList.size() == 0) {
+				} else if (m.size() == 0) {
 					Log.d("debug", "2");
 					Log.d("debug", "first message added: " + message + "\n");
-					messageList.add(message);
+					m.add(message);
 				} else {
-					Date parsedDate = dateFormat.parse(messageList.get(0).getTimestamp());
+					Date parsedDate = dateFormat.parse(m.get(0).getTimestamp());
 					Timestamp memberTimestamp = new java.sql.Timestamp(parsedDate.getTime());
 					if (newMessageTimeStamp.before(memberTimestamp)) {
 						Log.d("debug", "message added at start: " + message + "\n");
-						messageList.add(0, message);
+						m.add(0, message);
 					} else {
 						Log.d("debug", "message added at end: " + message + "\n");
-						messageList.add(message);
+						m.add(message);
 					}
 				}
 		}
@@ -365,7 +474,7 @@ public class MainActivity extends AppCompatActivity {
 									String timestamp = m.get("timestamp").toString();
 									Log.d("debug", message + username + timestamp);
 									Message newMessage = new Message(message, username, timestamp);
-									addToMessagesView(newMessage);
+									addToMessagesView(newMessage, messageList);
 									messageAdapter.notifyDataSetChanged();
 								}
 							} else {
