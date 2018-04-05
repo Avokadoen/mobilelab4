@@ -1,5 +1,6 @@
 package com.example.avokado.lab4;
 
+import android.app.ActivityManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -16,8 +17,10 @@ import android.util.Log;
 import android.view.View;
 
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.firebase.ui.auth.AuthUI;
+import com.google.firebase.auth.AuthResult;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnFailureListener;
@@ -30,7 +33,6 @@ import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.EventListener;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.FirebaseFirestoreException;
-import com.google.firebase.firestore.QueryDocumentSnapshot;
 import com.google.firebase.firestore.QuerySnapshot;
 
 import java.sql.Timestamp;
@@ -49,9 +51,8 @@ realtime data: 				https://firebase.google.com/docs/firestore/query-data/listen
 broadcasting from adapter: 	https://stackoverflow.com/a/35061883
 */
 
-// TODO: friendlist
 // TODO: hints when filling username
-// TODO: Fix timestamp in chat
+// TODO: Fix timestamp format in chat
 public class MainActivity extends AppCompatActivity {
 
 	private static final int RC_SIGN_IN = 100;
@@ -73,9 +74,12 @@ public class MainActivity extends AppCompatActivity {
 	public List<Friends> friendsList;
 	private FriendsAdapter friendsAdapter;
 
-	//
+	//used to showcase selected friend chat
 	public List<Message> thisFriendLogList;
 	public MessageAdapter thisFriendLog;
+
+	// anon login
+	public FirebaseAuth mAuth;
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -95,13 +99,22 @@ public class MainActivity extends AppCompatActivity {
 		friendsList = new ArrayList<>();
 		friendsAdapter = new FriendsAdapter(friendsList);
 
+		// start notification service if not active
+		if(!checkNotificationService()){
+			Intent ServiceIntent = new Intent(this, NotificationService.class);
+			this.startService(ServiceIntent);
+		}
+
+
+		// post message when user press button
 		findViewById(R.id.post_mess_bt).setOnClickListener(new View.OnClickListener() {
 			@Override
 			public void onClick(View view) {
 				TextView messageTextView = findViewById(R.id.new_mess_cont_tv);
 
 				// TODO: should be a rule in firestore
-				// make sure string is not empty/only whitespace
+
+				// makes sure string is not empty/only whitespace
 				String test = messageTextView.getText().toString().replaceAll("\\s+","");
 				if(!test.equals("")) {
 
@@ -118,6 +131,7 @@ public class MainActivity extends AppCompatActivity {
 			}
 		});
 
+		// change recyclerview content based on tab
 		findViewById(R.id.chat_tab_bt).setOnClickListener(new View.OnClickListener() {
 			@Override
 			public void onClick(View view) {
@@ -138,25 +152,56 @@ public class MainActivity extends AppCompatActivity {
 		LocalBroadcastManager.getInstance(this).registerReceiver(mMessageReceiver,
 				new IntentFilter("friend log"));
 
-		//recyclerLayoutTest();
-		//retrieveInitialData("messages");
 
-		// validate user
 		validName = false;
 		username = "";
 		db = FirebaseFirestore.getInstance();
 
+		// retrieve ID of user if existing
 		SharedPreferences sharedPref = getPreferences(Context.MODE_PRIVATE);
 		String ID = sharedPref.getString("ID", "");
 
+		String idTest = ID.replaceAll("\\s+","");
 
-		// ID.equals("")
-		if (true) {
+		// if ID is not stored, create new ID
+		if (idTest.equals("")) {
+
+			mAuth = FirebaseAuth.getInstance();
+
+			FirebaseUser currentUser = mAuth.getCurrentUser();
+
+			// sign user first in as anonymous
+			mAuth.signInAnonymously()
+					.addOnCompleteListener(this, new OnCompleteListener<AuthResult>() {
+						@Override
+						public void onComplete(@NonNull Task<AuthResult> task) {
+							if (task.isSuccessful()) {
+								// Sign in success, update UI with the signed-in user's information
+								Log.d("debug", "signInAnonymously:success");
+								FirebaseUser user = mAuth.getCurrentUser();
+								Toast.makeText(MainActivity.this, "Authentication successful. \n Press back key to close further login",
+										Toast.LENGTH_LONG).show();
+
+								username = generateRandomUsrnm();
+
+
+							} else {
+								// If sign in fails, display a message to the user.
+								Log.w("debug", "signInAnonymously:failure", task.getException());
+								Toast.makeText(MainActivity.this, "Authentication failed.",
+										Toast.LENGTH_SHORT).show();
+							}
+
+							// ...
+						}
+					});
+
 			// Choose authentication providers
 			List<AuthUI.IdpConfig> providers = Arrays.asList(
 					new AuthUI.IdpConfig.EmailBuilder().build(),
 					new AuthUI.IdpConfig.GoogleBuilder().build()
 			);
+
 			// Create and launch sign-in intent
 			startActivityForResult(AuthUI.getInstance()
 							.createSignInIntentBuilder()
@@ -165,8 +210,8 @@ public class MainActivity extends AppCompatActivity {
 					RC_SIGN_IN);
 		}
 		else{
-			//TODO
 
+			// validate ID with hash key
 			Log.d("debug", "using existing user with id: " + ID);
 			DocumentReference docRef = db.collection("users").document(ID);
 			docRef.get().addOnCompleteListener(new OnCompleteListener<DocumentSnapshot>() {
@@ -181,7 +226,7 @@ public class MainActivity extends AppCompatActivity {
 							Log.d("debug", "ID does not exist. deleting ID from file");
 							SharedPreferences sharedPref = getPreferences(Context.MODE_PRIVATE);
 							SharedPreferences.Editor editor = sharedPref.edit();
-							editor.putString("ID", "");
+							editor.remove("ID");
 							editor.apply();
 						}
 					} else {
@@ -190,6 +235,7 @@ public class MainActivity extends AppCompatActivity {
 				}
 			});
 		}
+		// subscribe to messages in db and update if there is a change in firestore
 		db.collection("messages").addSnapshotListener(
 				new EventListener<QuerySnapshot>() {
 					@Override
@@ -205,6 +251,7 @@ public class MainActivity extends AppCompatActivity {
 
 							int changes = snapshot.getDocumentChanges().size();
 
+							// update all new messages to adapter
 							for(int i = 0; i < changes; i++) {
 								Map m = snapshot.getDocumentChanges().get(i).getDocument().getData();
 								String message = m.get("message").toString();
@@ -225,6 +272,7 @@ public class MainActivity extends AppCompatActivity {
 				}
 		);
 
+		// subscribe to users in db and update if there is a change in firestore
 		db.collection("users").addSnapshotListener(
 				new EventListener<QuerySnapshot>() {
 					@Override
@@ -240,6 +288,7 @@ public class MainActivity extends AppCompatActivity {
 
 							int changes = snapshot.getDocumentChanges().size();
 
+							// update all new friends to adapter
 							for(int i = 0; i < changes; i++) {
 								Map m = snapshot.getDocumentChanges().get(i).getDocument().getData();
 								String username = m.get("username").toString();
@@ -256,9 +305,12 @@ public class MainActivity extends AppCompatActivity {
 				}
 		);
 	}
+
+	// check if user request friends log
 	public BroadcastReceiver mMessageReceiver = new BroadcastReceiver() {
 		@Override
 		public void onReceive(Context context, Intent intent) {
+
 			// Get extra data included in the Intent
 			String userToLog = intent.getStringExtra("username");
 			Log.d("debug", "onReceive: " + userToLog);
@@ -269,6 +321,7 @@ public class MainActivity extends AppCompatActivity {
 			RecyclerViewChat.setAdapter(thisFriendLog);
 			RecyclerViewChat.scrollToPosition(messageList.size() - 1);
 
+			// retrieve all messages from requested friend
 			db.collection("messages").whereEqualTo("username", userToLog).addSnapshotListener(
 					new EventListener<QuerySnapshot>() {
 						@Override
@@ -309,13 +362,15 @@ public class MainActivity extends AppCompatActivity {
 	@Override
 	protected void onActivityResult(int requestCode, int resultCode, Intent data) {
 		super.onActivityResult(requestCode, resultCode, data);
-		if (requestCode == RC_SIGN_IN) {
-			//IdpResponse response = IdpResponse.fromResultIntent(data);
 
+		// if request is a sign in
+		if (requestCode == RC_SIGN_IN) {
 			if (resultCode == RESULT_OK) {
+
 				// Successfully signed in
 				FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
 
+				// start registration activity and supply user with random username
 				Intent i = new Intent(MainActivity.this, RegisterUser.class);
 				i.putExtra("rndusername", generateRandomUsrnm());
 				startActivityForResult(i, RC_USR_REG);
@@ -324,8 +379,9 @@ public class MainActivity extends AppCompatActivity {
 				// Sign in failed, check response for error code
 				// ...
 			}
-		} else if (requestCode == RC_USR_REG) {
-
+		}
+		// if request is creating user in db
+		else if (requestCode == RC_USR_REG) {
 			if (resultCode == RESULT_OK) {
 				validName = true;
 				username = data.getStringExtra("requsername");
@@ -340,6 +396,7 @@ public class MainActivity extends AppCompatActivity {
 									// make sure atleast one element exists
 									for (DocumentSnapshot document : task.getResult()) {
 										Log.d("debug", document.getId() + " => " + document.getData());
+										// invalid name if it already exist
 										if (document.get("username").toString().equals(username)) {
 											Log.w("debug", "validName set to false");
 											validName = false;
@@ -353,7 +410,7 @@ public class MainActivity extends AppCompatActivity {
 									Log.w("debug", "equal usernames");
 									startActivityForResult(new Intent(MainActivity.this, RegisterUser.class), RC_USR_REG);
 								}
-								else {
+								else { // save user in db
 
 									Map<String, Object> user = new HashMap<>();
 									user.put("username", username);
@@ -362,7 +419,7 @@ public class MainActivity extends AppCompatActivity {
 										@Override
 										public void onSuccess(DocumentReference documentReference) {
 											Log.d("debug", "DocumentSnapshot added with ID: " + documentReference.getId());
-
+											// if username was successfully added to db, save ID for username
 											SharedPreferences sharedPref = getPreferences(Context.MODE_PRIVATE);
 											SharedPreferences.Editor editor = sharedPref.edit();
 											editor.putString("ID", documentReference.getId());
@@ -383,7 +440,10 @@ public class MainActivity extends AppCompatActivity {
 			}
 		}
 	}
-
+	/*
+		adds messages to adapter in correct order based on timestamp
+		where recent timestamps comes at the bottom
+	*/
 	public void addToMessagesView(Message message, List<Message> m) {
 		Log.d("debug", "1");
 		try {
@@ -441,59 +501,16 @@ public class MainActivity extends AppCompatActivity {
 
 	}
 
-	private void recyclerLayoutTest() {
-		Message m = new Message("Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.", "u", "t");
-		Message fm = new Message("first.", "first", "2004");
-		Message lm = new Message("last.", "last", "2020");
-		messageList.add(fm);
-		messageList.add(m);
-		messageList.add(m);
-		messageList.add(m);
-		messageList.add(m);
-		messageList.add(lm);
-	}
-
-	// TODO: remove
-	public void retrieveInitialData(String collectName) {
-
-		db = FirebaseFirestore.getInstance();
-
-		try {
-			db.collection(collectName)
-					.get()
-					.addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
-
-						@Override
-						public void onComplete(@NonNull Task<QuerySnapshot> task) {
-							if (task.isSuccessful()) {
-								for (QueryDocumentSnapshot document : task.getResult()) {
-									Log.d("debug", document.getId() + " => " + document.getData());
-									Map m = document.getData();
-									String message = m.get("message").toString();
-									String username = m.get("username").toString();
-									String timestamp = m.get("timestamp").toString();
-									Log.d("debug", message + username + timestamp);
-									Message newMessage = new Message(message, username, timestamp);
-									addToMessagesView(newMessage, messageList);
-									messageAdapter.notifyDataSetChanged();
-								}
-							} else {
-								Log.d("debug", "Error getting documents: ", task.getException());
-							}
-						}
-
-					});
-		} catch (NullPointerException n) {
-			Log.d("debug", "Error getting documents: ", n);
-		}
-
-	}
-
+	/*
+		generates a random username for new users where output will be
+		(adjective)(noun)(5 numbers)
+	*/
 	public String generateRandomUsrnm(){
 		Random rand = new Random();
 		int min = 10000;
 		int max = 90000;
 
+		// hardcoded list of adjectives
 		String adjectiveList =
 				"stabby\n" +
 				"attractive\n" +
@@ -563,6 +580,7 @@ public class MainActivity extends AppCompatActivity {
 				"vast\n" +
 				"wrong";
 
+		// hardcoded list of nouns
 		String nounList =
 				"Roberto\n" +
 				"bot\n" +
@@ -658,14 +676,14 @@ public class MainActivity extends AppCompatActivity {
 				"woman\n" +
 				"women";
 
+		// split said lists on newline
 		String adjectiveArray[] = adjectiveList.split("\\r?\\n");
 		String nounArray[] = nounList.split("\\r?\\n");
-
-
 
 		unusedName = false;
 		rtrUsername = "";
 
+		// generate random usernames until we find one that is not taken
 		while(!unusedName) {
 
 			String adjective = adjectiveArray[rand.nextInt(adjectiveArray.length)];
@@ -698,4 +716,16 @@ public class MainActivity extends AppCompatActivity {
 		}
 		return rtrUsername;
 	}
+
+	// checks if our notification service is running on system
+	private boolean checkNotificationService(){
+		ActivityManager manager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+		for(ActivityManager.RunningServiceInfo service : manager.getRunningServices(Integer.MAX_VALUE)){
+			if(NotificationService.class.getName().equals(service.service.getClassName())) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 }
