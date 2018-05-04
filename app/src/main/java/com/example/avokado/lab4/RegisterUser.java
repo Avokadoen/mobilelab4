@@ -10,8 +10,8 @@ import android.widget.TextView;
 
 public class RegisterUser extends AppCompatActivity implements View.OnClickListener {
 
-	final static int maxstr = 35;
-	final static int minstr = 3;
+	private final static int maxstr = 35;
+	private final static int minstr = 3;
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {

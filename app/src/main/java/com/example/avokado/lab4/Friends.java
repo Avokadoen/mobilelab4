@@ -1,6 +1,6 @@
 package com.example.avokado.lab4;
 
-public class Friends {
+class Friends {
 	private String username;
 
 	Friends(){};

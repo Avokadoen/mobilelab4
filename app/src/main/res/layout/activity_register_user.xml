@@ -22,7 +22,8 @@
         app:layout_constraintHorizontal_bias="0.274"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_bias="0.131" />
+        app:layout_constraintVertical_bias="0.131"
+        tools:ignore="HardcodedText" />
 
     <Button
         android:id="@+id/bt_activate_reg_use"
@@ -38,5 +39,6 @@
         app:layout_constraintHorizontal_bias="0.154"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_bias="0.263" />
+        app:layout_constraintVertical_bias="0.263"
+        tools:ignore="HardcodedText" />
 </android.support.constraint.ConstraintLayout>

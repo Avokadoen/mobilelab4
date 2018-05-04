@@ -1,5 +1,6 @@
 package com.example.avokado.lab4;
 
+import android.annotation.SuppressLint;
 import android.app.ActivityManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -58,28 +59,28 @@ public class MainActivity extends AppCompatActivity {
 	private static final int RC_SIGN_IN = 100;
 	private static final int RC_USR_REG = 101;
 
-	FirebaseFirestore db;
-	String username;
+	private FirebaseFirestore db;
+	private String username;
 
-	protected String rtrUsername;
-	protected boolean validName;
-	protected boolean unusedName;
+	private String rtrUsername;
+	private boolean validName;
+	private boolean unusedName;
 
 	//chat data
-	public List<Message> messageList;
+	private List<Message> messageList;
 	private MessageAdapter messageAdapter;
 	private RecyclerView RecyclerViewChat;
 
 	//friends data
-	public List<Friends> friendsList;
+	private List<Friends> friendsList;
 	private FriendsAdapter friendsAdapter;
 
 	//used to showcase selected friend chat
-	public List<Message> thisFriendLogList;
-	public MessageAdapter thisFriendLog;
+	private List<Message> thisFriendLogList;
+	private MessageAdapter thisFriendLog;
 
 	// anon login
-	public FirebaseAuth mAuth;
+	private FirebaseAuth mAuth;
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -307,7 +308,7 @@ public class MainActivity extends AppCompatActivity {
 	}
 
 	// check if user request friends log
-	public BroadcastReceiver mMessageReceiver = new BroadcastReceiver() {
+	private BroadcastReceiver mMessageReceiver = new BroadcastReceiver() {
 		@Override
 		public void onReceive(Context context, Intent intent) {
 
@@ -444,10 +445,10 @@ public class MainActivity extends AppCompatActivity {
 		adds messages to adapter in correct order based on timestamp
 		where recent timestamps comes at the bottom
 	*/
-	public void addToMessagesView(Message message, List<Message> m) {
+	private void addToMessagesView(Message message, List<Message> m) {
 		Log.d("debug", "1");
 		try {
-			SimpleDateFormat dateFormat = new SimpleDateFormat("EEE MMM d hh:mm:ss z yyyy");
+			@SuppressLint("SimpleDateFormat") SimpleDateFormat dateFormat = new SimpleDateFormat("EEE MMM d hh:mm:ss z yyyy");
 			Date newParsedDate = dateFormat.parse(message.getTimestamp());
 			Timestamp newMessageTimeStamp = new java.sql.Timestamp(newParsedDate.getTime());;
 			boolean added = false;
@@ -505,7 +506,7 @@ public class MainActivity extends AppCompatActivity {
 		generates a random username for new users where output will be
 		(adjective)(noun)(5 numbers)
 	*/
-	public String generateRandomUsrnm(){
+	private String generateRandomUsrnm(){
 		Random rand = new Random();
 		int min = 10000;
 		int max = 90000;
@@ -720,6 +721,7 @@ public class MainActivity extends AppCompatActivity {
 	// checks if our notification service is running on system
 	private boolean checkNotificationService(){
 		ActivityManager manager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+		assert manager != null;
 		for(ActivityManager.RunningServiceInfo service : manager.getRunningServices(Integer.MAX_VALUE)){
 			if(NotificationService.class.getName().equals(service.service.getClassName())) {
 				return true;

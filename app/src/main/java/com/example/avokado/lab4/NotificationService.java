@@ -6,7 +6,6 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
 import android.os.Build;
-import android.os.Handler;
 import android.os.IBinder;
 import android.support.annotation.Nullable;
 import android.support.v4.app.NotificationCompat;
@@ -17,19 +16,17 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.FirebaseFirestoreException;
 import com.google.firebase.firestore.QuerySnapshot;
 
-import java.util.Map;
-
 import static android.app.NotificationManager.IMPORTANCE_DEFAULT;
 
 public class NotificationService extends Service {
 
-	NotificationCompat.Builder builder;
-	NotificationManager manager;
+	private NotificationCompat.Builder builder;
+	private NotificationManager manager;
 
-	FirebaseFirestore db;
+	private FirebaseFirestore db;
 
-	private int NOTIF_ID = 1;
-	String NOTIF_KEY = "com.example.avokado.lab4";
+	private final int NOTIF_ID = 1;
+	private final String NOTIF_KEY = "com.example.avokado.lab4";
 
 	public NotificationService() {
 	}
